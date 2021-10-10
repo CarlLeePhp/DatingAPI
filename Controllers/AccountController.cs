@@ -21,10 +21,13 @@ namespace DatingAPI.Controllers
     {
         private readonly DatingContext _context;
         private readonly ITokenService _tokenService;
-        public AccountController(DatingContext context, ITokenService tokenService)
+        private readonly IUserRepository _userRepository;
+        public AccountController(DatingContext context, ITokenService tokenService, 
+            IUserRepository userRepository)
         {
             _context = context;
             _tokenService = tokenService;
+            _userRepository = userRepository;
         }
 
         [HttpPost("register")]
@@ -54,7 +57,10 @@ namespace DatingAPI.Controllers
         [HttpPost("login")]
         public async Task<ActionResult<UserDto>> Login(LoginDto loginDto)
         {
-            AppUser user = await _context.Users.SingleOrDefaultAsync(user => user.UserName == loginDto.UserName);
+            AppUser user = await _context.Users
+                .Include(u => u.Photos)
+                .SingleOrDefaultAsync(user => user.UserName == loginDto.UserName);
+            // AppUser user = await _userRepository.GetUserByUsernameAsync(loginDto.UserName);
 
             if (user == null) return BadRequest("Invalid username");
 
@@ -70,7 +76,8 @@ namespace DatingAPI.Controllers
             return new UserDto
             {
                 UserName = user.UserName,
-                Token = _tokenService.CreateToken(user)
+                Token = _tokenService.CreateToken(user),
+                PhotoUrl = user.Photos.FirstOrDefault(x => x.IsMain)?.Url
             };
         }
 
