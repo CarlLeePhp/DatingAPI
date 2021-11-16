@@ -1,4 +1,5 @@
-﻿using DatingAPI.Data;
+﻿using AutoMapper;
+using DatingAPI.Data;
 using DatingAPI.DTOs;
 using DatingAPI.Entities;
 using DatingAPI.Interfaces;
@@ -22,12 +23,14 @@ namespace DatingAPI.Controllers
         private readonly DatingContext _context;
         private readonly ITokenService _tokenService;
         private readonly IUserRepository _userRepository;
+        private readonly IMapper _mapper;
         public AccountController(DatingContext context, ITokenService tokenService, 
-            IUserRepository userRepository)
+            IUserRepository userRepository, IMapper mapper)
         {
             _context = context;
             _tokenService = tokenService;
             _userRepository = userRepository;
+            _mapper = mapper;
         }
 
         [HttpPost("register")]
@@ -35,13 +38,12 @@ namespace DatingAPI.Controllers
         {
             if (await UserExist(registerDto.UserName)) return BadRequest("The username is taken");
 
+            AppUser user = _mapper.Map<AppUser>(registerDto);
+
             using var hmac = new HMACSHA512();
-            AppUser user = new AppUser()
-            {
-                UserName = registerDto.UserName.ToLower(),
-                PasswordHash = hmac.ComputeHash(Encoding.UTF8.GetBytes(registerDto.Password)),
-                PasswordSalt = hmac.Key
-            };
+            user.UserName = registerDto.UserName.ToLower();
+            user.PasswordHash = hmac.ComputeHash(Encoding.UTF8.GetBytes(registerDto.Password));
+            user.PasswordSalt = hmac.Key;
 
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
@@ -49,7 +51,8 @@ namespace DatingAPI.Controllers
             return new UserDto
             {
                 UserName = user.UserName,
-                Token = _tokenService.CreateToken(user)
+                Token = _tokenService.CreateToken(user),
+                KnownAs = user.KnownAs
             };
         }
 
@@ -77,7 +80,8 @@ namespace DatingAPI.Controllers
             {
                 UserName = user.UserName,
                 Token = _tokenService.CreateToken(user),
-                PhotoUrl = user.Photos.FirstOrDefault(x => x.IsMain)?.Url
+                PhotoUrl = user.Photos.FirstOrDefault(x => x.IsMain)?.Url,
+                KnownAs = user.KnownAs
             };
         }
 
